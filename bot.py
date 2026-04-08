@@ -5,7 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 import os
 
-# ------------------ TOKEN ------------------
+# ------------------ LOAD TOKEN ------------------
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -68,9 +68,12 @@ async def play_next(ctx):
         'noplaylist': True
     }
 
+    loop = asyncio.get_event_loop()
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        audio_url = info['url']
+        info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+
+    audio_url = info['url']
 
     ffmpeg_options = {
         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -90,8 +93,6 @@ async def play_next(ctx):
             print(e)
 
     voice.play(source, after=after_play)
-
-    await ctx.send(f"🎶 Now playing: **{title}**")
 
 
 # ------------------ EVENTS ------------------
@@ -132,14 +133,11 @@ async def join(ctx):
     else:
         await channel.connect()
 
-    await ctx.send(f"Joined {channel}")
-
 
 @bot.command()
 async def leave(ctx):
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-        await ctx.send("Disconnected.")
     else:
         await ctx.send("I'm not in a voice channel.")
 
@@ -163,10 +161,12 @@ async def play(ctx, url):
         'quiet': True,
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    loop = asyncio.get_event_loop()
 
-    # ------------------ PLAYLIST HANDLING ------------------
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+
+    # ------------------ PLAYLIST ------------------
 
     if 'entries' in info:
         await ctx.send("📜 Loading playlist...")
@@ -175,14 +175,14 @@ async def play(ctx, url):
             if not entry:
                 continue
 
-            url = entry.get('webpage_url') or entry.get('url')
+            entry_url = entry.get('webpage_url') or entry.get('url')
 
-            if not url:
+            if not entry_url:
                 continue
 
             queues[guild_id].append({
-                "url": url,
-                "title": entry.get("title", "Unknown")
+                "url": entry_url,
+                "title": entry.get('title', 'Unknown')
             })
 
     else:
@@ -192,7 +192,6 @@ async def play(ctx, url):
         })
 
     if not ctx.voice_client.is_playing():
-        await ctx.send("▶️ Starting playback...")
         await play_next(ctx)
     else:
         await ctx.send("Added to queue.")
@@ -202,7 +201,6 @@ async def play(ctx, url):
 async def skip(ctx):
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        await ctx.send("Skipped.")
     else:
         await ctx.send("Nothing is playing.")
 
@@ -211,7 +209,6 @@ async def skip(ctx):
 async def pause(ctx):
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
-        await ctx.send("Paused.")
     else:
         await ctx.send("Nothing is playing.")
 
@@ -220,7 +217,6 @@ async def pause(ctx):
 async def resume(ctx):
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
-        await ctx.send("Resumed.")
     else:
         await ctx.send("Nothing is paused.")
 
@@ -234,8 +230,6 @@ async def stop(ctx):
 
     if guild_id in queues:
         queues[guild_id].clear()
-
-    await ctx.send("Stopped and cleared queue.")
 
 
 @bot.command()

@@ -161,6 +161,7 @@ async def play(ctx, url):
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,
+        'extract_flat': True
     }
 
     def extract():
@@ -179,15 +180,19 @@ async def play(ctx, url):
             if not entry:
                 continue
 
-            entry_url = entry.get('webpage_url') or entry.get('url')
+            entry_url = entry.get('url')
 
             if not entry_url:
                 continue
 
+            full_url = f"https://www.youtube.com/watch?v={entry_url}"
+
             queues[guild_id].append({
-                "url": entry_url,
+                "url": full_url,
                 "title": entry.get('title', 'Unknown')
             })
+
+        return
 
     else:
         queues[guild_id].append({

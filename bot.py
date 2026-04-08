@@ -281,25 +281,6 @@ async def remove(ctx, index: int):
 
     await ctx.send(f"🗑️ Removed:\n{removed['title']}")
 
-
-@bot.command(name="help")
-async def help_command(ctx):
-    await ctx.send("""
-🎵 **Commands:**
-
-!join – Join voice channel  
-!play <url> – Play song / playlist  
-!skip – Skip song  
-!pause – Pause  
-!resume – Resume  
-!stop – Stop & clear queue  
-!queue – Show queue  
-!clearqueue – Clear queue  
-!remove <#> – Remove song  
-!leave – Leave voice  
-""")
-
-
 # ------------------ RUN ------------------
 
 bot.run(token)

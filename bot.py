@@ -17,18 +17,31 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 queues = {}
 
 
-# ------------------ HELPERS ------------------
+# ------------------ Regular functions ------------------
 
 async def play_next(ctx):
     guild_id = ctx.guild.id
     voice = ctx.voice_client
 
-    if guild_id not in queues or not queues[guild_id]:
+    if not voice:
         return
 
-    url = queues[guild_id].pop(0)
+    if guild_id not in queues or not queues[guild_id]:
+        asyncio.create_task(auto_disconnect(ctx))
+        return
 
-    ydl_opts = {'format': 'bestaudio/best', 'quiet': True}
+    item = queues[guild_id].pop(0)
+
+    if isinstance(item, dict):
+        url = item.get("url")
+    else:
+        url = item
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'noplaylist': True
+    }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -44,6 +57,7 @@ async def play_next(ctx):
     def after_play(err):
         if err:
             print(err)
+
         fut = asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
         try:
             fut.result()
@@ -52,8 +66,55 @@ async def play_next(ctx):
 
     voice.play(source, after=after_play)
 
+    source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
 
-# ------------------ COMMANDS ------------------
+    def after_play(err):
+        if err:
+            print(err)
+        fut = asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
+        try:
+            fut.result()
+        except Exception as e:
+            print(e)
+
+    voice.play(source, after=after_play)
+
+async def auto_disconnect(ctx, timeout=300):
+    """Disconnect after timeout if nothing is playing."""
+    await asyncio.sleep(timeout)
+
+    voice = ctx.voice_client
+    guild_id = ctx.guild.id
+
+    if not voice:
+        return
+
+    # If still playing or queue not empty → don't disconnect
+    if voice.is_playing():
+        return
+
+    if guild_id in queues and queues[guild_id]:
+        return
+
+    await ctx.send("⏳ No activity. Leaving voice channel.")
+    await voice.disconnect()
+
+# -------------------Events --------------------
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    for voice in bot.voice_clients:
+        if not voice.channel:
+            continue
+
+        if member == bot.user:
+            continue
+
+        if len(voice.channel.members) == 1:
+            print("Channel empty, leaving...")
+            await voice.disconnect()
+
+# ------------------ Commands ------------------
 
 @bot.command()
 async def join(ctx):

@@ -69,13 +69,9 @@ async def play_next(ctx):
 
     loop = asyncio.get_running_loop()
 
-    def extract():
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=False)
-
-    info = await loop.run_in_executor(None, extract)
-
-    audio_url = info['url']
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        audio_url = info['url']
 
     ffmpeg_options = {
         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',

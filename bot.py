@@ -33,7 +33,7 @@ async def play_next(ctx):
     item = queues[guild_id].pop(0)
 
     if isinstance(item, dict):
-        url = item.get("url")
+        url = item["url"]
     else:
         url = item
 
@@ -89,7 +89,6 @@ async def auto_disconnect(ctx, timeout=300):
     if not voice:
         return
 
-    # If still playing or queue not empty → don't disconnect
     if voice.is_playing():
         return
 
@@ -155,12 +154,34 @@ async def play(ctx, url):
     if guild_id not in queues:
         queues[guild_id] = []
 
-    queue = queues[guild_id]
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+    }
 
-    queue.append(url)
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    if 'entries' in info:
+        await ctx.send("📜 Loading playlist...")
+
+        for entry in info['entries']:
+            if entry is None:
+                continue
+
+            queues[guild_id].append({
+                "url": entry['webpage_url'],
+                "title": entry.get('title', 'Unknown')
+            })
+
+    else:
+        queues[guild_id].append({
+            "url": url,
+            "title": "Single track"
+        })
 
     if not ctx.voice_client.is_playing():
-        await ctx.send("Playing...")
+        await ctx.send("▶️ Starting playback...")
         await play_next(ctx)
     else:
         await ctx.send("Added to queue.")

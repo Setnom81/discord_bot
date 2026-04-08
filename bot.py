@@ -60,18 +60,20 @@ async def play_next(ctx):
     item = queues[guild_id].pop(0)
 
     url = item["url"]
-    title = item.get("title", url)
 
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
-        'noplaylist': True
+        'noplaylist': True,
     }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+    def extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    info = await loop.run_in_executor(None, extract)
 
     audio_url = info['url']
 
@@ -81,6 +83,18 @@ async def play_next(ctx):
     }
 
     source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
+
+    def after_play(err):
+        if err:
+            print(err)
+
+        fut = asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
+        try:
+            fut.result()
+        except Exception as e:
+            print(e)
+
+    voice.play(source, after=after_play)
 
     def after_play(err):
         if err:
@@ -156,54 +170,13 @@ async def play(ctx, url):
     if guild_id not in queues:
         queues[guild_id] = []
 
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'noplaylist': True,
-        'skip_download': True,
-        'extract_flat': True
-    }
-
-    def extract():
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=False)
-
-    loop = asyncio.get_running_loop()
-    info = await loop.run_in_executor(None, extract)
-
-    # ------------------ PLAYLIST ------------------
-
-    if 'entries' in info:
-        await ctx.send("📜 Loading playlist...")
-
-        for entry in info['entries']:
-            if not entry:
-                continue
-
-            entry_url = entry.get('url')
-
-            if not entry_url:
-                continue
-
-            full_url = f"https://www.youtube.com/watch?v={entry_url}"
-
-            queues[guild_id].append({
-                "url": full_url,
-                "title": entry.get('title', 'Unknown')
-            })
-
-        return
-
-    else:
-        queues[guild_id].append({
-            "url": url,
-            "title": "Single track"
-        })
+    queues[guild_id].append({
+        "url": url,
+        "title": "Song"
+    })
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
-    else:
-        await ctx.send("Added to queue.")
 
 
 @bot.command()

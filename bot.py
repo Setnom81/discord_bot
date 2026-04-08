@@ -159,12 +159,16 @@ async def play(ctx, url):
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
+        'noplaylist': True,
+        'skip_download': True,
     }
 
-    loop = asyncio.get_event_loop()
+    def extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=False)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+    loop = asyncio.get_running_loop()
+    info = await loop.run_in_executor(None, extract)
 
     # ------------------ PLAYLIST ------------------
 

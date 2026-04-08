@@ -5,19 +5,46 @@ import asyncio
 from dotenv import load_dotenv
 import os
 
+# ------------------ TOKEN ------------------
+
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
+
+if not token:
+    raise ValueError("DISCORD_TOKEN is missing from .env")
+
+# ------------------ INTENTS ------------------
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Queue per guild
+# ------------------ QUEUE ------------------
+
 queues = {}
 
+# ------------------ HELPERS ------------------
 
-# ------------------ Regular functions ------------------
+async def auto_disconnect(ctx, timeout=300):
+    await asyncio.sleep(timeout)
+
+    voice = ctx.voice_client
+    guild_id = ctx.guild.id
+
+    if not voice:
+        return
+
+    if voice.is_playing():
+        return
+
+    if guild_id in queues and queues[guild_id]:
+        return
+
+    await ctx.send("⏳ No activity. Leaving voice channel.")
+    await voice.disconnect()
+
 
 async def play_next(ctx):
     guild_id = ctx.guild.id
@@ -32,10 +59,8 @@ async def play_next(ctx):
 
     item = queues[guild_id].pop(0)
 
-    if isinstance(item, dict):
-        url = item["url"]
-    else:
-        url = item
+    url = item["url"]
+    title = item.get("title", url)
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -66,39 +91,15 @@ async def play_next(ctx):
 
     voice.play(source, after=after_play)
 
-    source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
+    await ctx.send(f"🎶 Now playing: **{title}**")
 
-    def after_play(err):
-        if err:
-            print(err)
-        fut = asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
-        try:
-            fut.result()
-        except Exception as e:
-            print(e)
 
-    voice.play(source, after=after_play)
+# ------------------ EVENTS ------------------
 
-async def auto_disconnect(ctx, timeout=300):
-    """Disconnect after timeout if nothing is playing."""
-    await asyncio.sleep(timeout)
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
 
-    voice = ctx.voice_client
-    guild_id = ctx.guild.id
-
-    if not voice:
-        return
-
-    if voice.is_playing():
-        return
-
-    if guild_id in queues and queues[guild_id]:
-        return
-
-    await ctx.send("⏳ No activity. Leaving voice channel.")
-    await voice.disconnect()
-
-# -------------------Events --------------------
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -109,11 +110,14 @@ async def on_voice_state_update(member, before, after):
         if member == bot.user:
             continue
 
-        if len(voice.channel.members) == 1:
+        humans = [m for m in voice.channel.members if not m.bot]
+
+        if len(humans) == 0:
             print("Channel empty, leaving...")
             await voice.disconnect()
 
-# ------------------ Commands ------------------
+
+# ------------------ COMMANDS ------------------
 
 @bot.command()
 async def join(ctx):
@@ -162,16 +166,23 @@ async def play(ctx, url):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
+    # ------------------ PLAYLIST HANDLING ------------------
+
     if 'entries' in info:
         await ctx.send("📜 Loading playlist...")
 
         for entry in info['entries']:
-            if entry is None:
+            if not entry:
+                continue
+
+            url = entry.get('webpage_url') or entry.get('url')
+
+            if not url:
                 continue
 
             queues[guild_id].append({
-                "url": entry['webpage_url'],
-                "title": entry.get('title', 'Unknown')
+                "url": url,
+                "title": entry.get("title", "Unknown")
             })
 
     else:
@@ -235,10 +246,12 @@ async def queue(ctx):
         await ctx.send("Queue is empty.")
         return
 
-    q = queues[guild_id]
-    msg = "\n".join([f"{i+1}. {url}" for i, url in enumerate(q)])
+    msg = "\n".join(
+        [f"{i+1}. {item['title']}" for i, item in enumerate(queues[guild_id])]
+    )
 
     await ctx.send(f"Queue:\n{msg}")
+
 
 @bot.command()
 async def clearqueue(ctx):
@@ -246,9 +259,9 @@ async def clearqueue(ctx):
 
     if guild_id in queues:
         queues[guild_id].clear()
-        await ctx.send("🧹 Queue cleared.")
-    else:
-        await ctx.send("Queue is already empty.")
+
+    await ctx.send("🧹 Queue cleared.")
+
 
 @bot.command()
 async def remove(ctx, index: int):
@@ -266,9 +279,27 @@ async def remove(ctx, index: int):
 
     removed = queue.pop(index - 1)
 
-    await ctx.send(f"🗑️ Removed from queue:\n{removed}")
+    await ctx.send(f"🗑️ Removed:\n{removed['title']}")
 
 
-# ------------------ RUN BOT ------------------
+@bot.command(name="help")
+async def help_command(ctx):
+    await ctx.send("""
+🎵 **Commands:**
+
+!join – Join voice channel  
+!play <url> – Play song / playlist  
+!skip – Skip song  
+!pause – Pause  
+!resume – Resume  
+!stop – Stop & clear queue  
+!queue – Show queue  
+!clearqueue – Clear queue  
+!remove <#> – Remove song  
+!leave – Leave voice  
+""")
+
+
+# ------------------ RUN ------------------
 
 bot.run(token)

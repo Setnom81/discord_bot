@@ -65,7 +65,7 @@ async def play_next(ctx):
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,
-        'cookiefile': 'cookie.txt'
+        'cookiefile': 'cookies.txt'
     }
 
     loop = asyncio.get_running_loop()

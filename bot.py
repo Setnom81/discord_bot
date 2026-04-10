@@ -61,17 +61,10 @@ async def play_next(ctx):
     url = item["url"]
 
     ydl_opts = {
-        'format': 'bestaudio[protocol=https]/bestaudio',
+        'format': 'bestaudio/best',
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,
-
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android'],
-                'skip': ['dash', 'hls']
-            }
-        }
     }
 
     loop = asyncio.get_running_loop()

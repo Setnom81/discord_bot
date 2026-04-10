@@ -58,7 +58,6 @@ async def play_next(ctx):
         return
 
     item = queues[guild_id].pop(0)
-
     url = item["url"]
 
     ydl_opts = {
@@ -67,13 +66,29 @@ async def play_next(ctx):
         'noplaylist': True,
         'cookiefile': 'cookies.txt',
         'skip_download': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        }
     }
 
     loop = asyncio.get_running_loop()
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
-        audio_url = info['url']
+
+        if 'entries' in info:
+            info = info['entries'][0]
+
+        formats = info.get('formats', [])
+        audio_formats = [f for f in formats if f.get('acodec') != 'none']
+
+        if not audio_formats:
+            raise Exception("No audio formats found")
+
+        best_audio = max(audio_formats, key=lambda x: x.get('abr') or 0)
+        audio_url = best_audio['url']
 
     ffmpeg_options = {
         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -81,18 +96,6 @@ async def play_next(ctx):
     }
 
     source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
-
-    def after_play(err):
-        if err:
-            print(err)
-
-        fut = asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
-        try:
-            fut.result()
-        except Exception as e:
-            print(e)
-
-    voice.play(source, after=after_play)
 
     def after_play(err):
         if err:
@@ -254,6 +257,7 @@ async def remove(ctx, index: int):
     removed = queue.pop(index - 1)
 
     await ctx.send(f"🗑️ Removed:\n{removed['title']}")
+
 
 # ------------------ RUN ------------------
 

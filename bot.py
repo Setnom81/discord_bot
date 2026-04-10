@@ -61,7 +61,7 @@ async def play_next(ctx):
     url = item["url"]
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': '140/251/bestaudio',
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,

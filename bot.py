@@ -62,9 +62,11 @@ async def play_next(ctx):
     url = item["url"]
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'noplaylist': True,
+        'cookiefile': 'cookies.txt',
+        'skip_download': True,
     }
 
     loop = asyncio.get_running_loop()

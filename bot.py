@@ -71,9 +71,9 @@ async def play_next(ctx):
         'youtube': {
             'player_client': ['android', 'web'],
             'skip': ['dash', 'hls']  # 🔥 IMPORTANT
+            }
         }
     }
-}
 
     loop = asyncio.get_running_loop()
 

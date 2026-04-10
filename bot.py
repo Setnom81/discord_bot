@@ -81,19 +81,12 @@ async def play_next(ctx):
         if 'entries' in info:
             info = info['entries'][0]
 
-        formats = info.get('formats', [])
-        audio_formats = [f for f in formats if f.get('acodec') != 'none']
+        audio_url = info['url']
 
-        if not audio_formats:
-            raise Exception("No audio formats found")
-
-        best_audio = max(audio_formats, key=lambda x: x.get('abr') or 0)
-        audio_url = best_audio['url']
-
-    ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-        'options': '-vn'
-    }
+        ffmpeg_options = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
 
     source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
 

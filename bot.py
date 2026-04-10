@@ -65,12 +65,6 @@ async def play_next(ctx):
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,
-        'cookiefile': 'cookies.txt',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android']
-            }
-        }
     }
 
     loop = asyncio.get_running_loop()
